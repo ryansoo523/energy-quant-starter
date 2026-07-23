@@ -1,0 +1,8 @@
+venv/
+__pycache__/
+*.pyc
+data/*.csv
+output/*.csv
+output/*.png
+.env
+.claude/settings.local.json

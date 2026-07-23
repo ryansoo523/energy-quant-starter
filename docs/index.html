@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cross-Commodity Energy Strategy — Research Summary</title>
+<meta name="description" content="Strategy overview, signal diagnostics, and backtest results for a cross-commodity momentum/carry/seasonality strategy on WTI, Henry Hub, RBOB, and Heating Oil.">
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page:           #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --grid:           #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --border-strong:  rgba(11,11,11,0.16);
+    --series-1:       #2a78d6;
+    --series-2:       #eb6834;
+    --series-3:       #1baf7a;
+    --good:           #0ca30c;
+    --good-bg:        rgba(12,163,12,0.08);
+    --critical:       #d03b3b;
+    --critical-bg:    rgba(208,59,59,0.08);
+    --warning-bg:     rgba(250,178,25,0.12);
+    --code-bg:        #f0efec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --page:           #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --grid:           #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+      --border-strong:  rgba(255,255,255,0.16);
+      --series-1:       #3987e5;
+      --series-2:       #d95926;
+      --series-3:       #199e70;
+      --good:           #0ca30c;
+      --good-bg:        rgba(12,163,12,0.12);
+      --critical:       #e66767;
+      --critical-bg:    rgba(230,103,103,0.12);
+      --warning-bg:     rgba(201,133,0,0.14);
+      --code-bg:        #232322;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --page:           #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --grid:           #2c2c2a;
+    --baseline:       #383835;
+    --border:         rgba(255,255,255,0.10);
+    --border-strong:  rgba(255,255,255,0.16);
+    --series-1:       #3987e5;
+    --series-2:       #d95926;
+    --series-3:       #199e70;
+    --good:           #0ca30c;
+    --good-bg:        rgba(12,163,12,0.12);
+    --critical:       #e66767;
+    --critical-bg:    rgba(230,103,103,0.12);
+    --warning-bg:     rgba(201,133,0,0.14);
+    --code-bg:        #232322;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--page);
+    color: var(--text-primary);
+    line-height: 1.55;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 0 20px; }
+
+  header.hero {
+    padding: 56px 0 36px;
+    border-bottom: 1px solid var(--border);
+  }
+  header.hero .eyebrow {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin: 0 0 10px;
+  }
+  header.hero h1 {
+    font-size: clamp(28px, 4vw, 40px);
+    margin: 0 0 14px;
+    letter-spacing: -0.01em;
+  }
+  header.hero p.lede {
+    font-size: 17px;
+    color: var(--text-secondary);
+    max-width: 640px;
+    margin: 0;
+  }
+
+  nav.toc {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: color-mix(in srgb, var(--page) 88%, transparent);
+    backdrop-filter: blur(6px);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.toc .wrap {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+  nav.toc a {
+    white-space: nowrap;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-decoration: none;
+    padding: 6px 12px;
+    border-radius: 999px;
+  }
+  nav.toc a:hover { background: var(--code-bg); color: var(--text-primary); }
+
+  .theme-toggle {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 20;
+    background: var(--surface-1);
+    border: 1px solid var(--border-strong);
+    color: var(--text-primary);
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+  }
+
+  section { padding: 44px 0; border-bottom: 1px solid var(--border); }
+  section:last-of-type { border-bottom: none; }
+  section h2 {
+    font-size: 22px;
+    margin: 0 0 6px;
+    letter-spacing: -0.01em;
+    scroll-margin-top: 56px;
+  }
+  section .section-sub {
+    color: var(--text-secondary);
+    font-size: 14.5px;
+    margin: 0 0 24px;
+    max-width: 640px;
+  }
+  h3.subhead {
+    font-size: 15px;
+    font-weight: 700;
+    margin: 32px 0 12px;
+  }
+  p { color: var(--text-primary); }
+  p.muted { color: var(--text-secondary); font-size: 14.5px; }
+
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 22px;
+  }
+
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 10px;
+    margin: 20px 0 4px;
+  }
+  .kpi {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .kpi .kpi-label {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 4px;
+  }
+  .kpi .kpi-value {
+    font-size: 20px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+    font-variant-numeric: tabular-nums;
+  }
+  table caption {
+    text-align: left;
+    font-size: 12.5px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    caption-side: top;
+  }
+  th, td {
+    text-align: right;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--grid);
+  }
+  th:first-child, td:first-child { text-align: left; }
+  thead th {
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    border-bottom: 1px solid var(--baseline);
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tr.total td { font-weight: 700; border-top: 1px solid var(--baseline); }
+  td.neg { color: var(--critical); }
+  td.pos { color: var(--good); }
+  .table-scroll { overflow-x: auto; margin: 10px 0 4px; }
+  .table-scroll table { min-width: 560px; }
+
+  .chart-figure { margin: 24px 0 8px; }
+  .chart-figure svg { width: 100%; height: auto; display: block; }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin: 10px 2px 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .legend .dot {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border-radius: 2px;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  figcaption {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    margin-top: 8px;
+  }
+  .tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: var(--surface-1);
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 12.5px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+    opacity: 0;
+    transition: opacity 0.1s;
+    white-space: nowrap;
+  }
+  .chart-wrap { position: relative; }
+
+  .finding {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 22px;
+    margin-bottom: 16px;
+    background: var(--surface-1);
+  }
+  .finding-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 3px 9px;
+    border-radius: 999px;
+    margin-bottom: 10px;
+  }
+  .finding-tag.good { color: var(--good); background: var(--good-bg); }
+  .finding-tag.critical { color: var(--critical); background: var(--critical-bg); }
+  .finding-tag.neutral { color: var(--text-secondary); background: var(--code-bg); }
+  .finding h3 { margin: 0 0 8px; font-size: 17px; }
+  .finding p { font-size: 14.5px; color: var(--text-secondary); margin: 8px 0; }
+  .finding p strong { color: var(--text-primary); }
+  .finding .stat-line {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    margin: 14px 0 4px;
+    padding-top: 14px;
+    border-top: 1px solid var(--grid);
+  }
+  .finding .stat {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .finding .stat b {
+    display: block;
+    font-size: 18px;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  code.inline {
+    background: var(--code-bg);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 0.92em;
+  }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+  }
+
+  footer {
+    padding: 32px 0 60px;
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+  footer a { color: var(--text-secondary); }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <p class="eyebrow">Research Summary · Updated 2026-07-23</p>
+    <h1>Cross-Commodity Energy Strategy</h1>
+    <p class="lede">A vol-targeted momentum / carry / seasonality strategy across WTI Crude, Henry Hub Natural Gas, RBOB Gasoline, and Heating Oil — built and diagnosed end-to-end, from raw data pull through signal decomposition to a live vol-sizing bug fix.</p>
+  </div>
+</header>
+
+<nav class="toc">
+  <div class="wrap">
+    <a href="#overview">Overview</a>
+    <a href="#data">Data &amp; Signals</a>
+    <a href="#results">Backtest Results</a>
+    <a href="#breakdown">Signal Breakdown</a>
+    <a href="#findings">Key Findings</a>
+    <a href="#repro">Run It</a>
+  </div>
+</nav>
+
+<main class="wrap">
+
+  <section id="overview">
+    <h2>Strategy Overview</h2>
+    <p class="section-sub">A systematic, vol-targeted long/short book across four energy futures, rebalanced weekly.</p>
+
+    <div class="card">
+      <p style="margin-top:0">Each week, four commodities — <strong>CL</strong> (WTI Crude), <strong>NG</strong> (Henry Hub Natural Gas), <strong>RB</strong> (RBOB Gasoline), and <strong>HO</strong> (Heating Oil / ULSD) — are scored on three signals and combined into a single composite z-score per commodity:</p>
+      <ul style="color:var(--text-secondary); font-size:14.5px;">
+        <li><strong>Momentum</strong> — average of 12- and 26-week trailing returns.</li>
+        <li><strong>Carry</strong> — trailing price vs. rolling-mean proxy for term-structure shape (a stand-in for calendar-spread carry, since only front-month continuous contracts are available from this data source).</li>
+        <li><strong>Seasonality</strong> — historical same-calendar-month return, using only data available up to that point.</li>
+      </ul>
+      <p>The composite signal is converted to a position via <code class="inline">tanh</code>-squashed conviction sizing, scaled to a 15% annualized volatility target per commodity, capped at 2x leverage. Positions are lagged one week (trade on signal at week <em>t</em>, realize the return over week <em>t</em>→<em>t</em>+1) and charged 5bps transaction cost on turnover.</p>
+      <div class="kpi-row">
+        <div class="kpi"><div class="kpi-label">Universe</div><div class="kpi-value" style="font-size:16px;">CL · NG · RB · HO</div></div>
+        <div class="kpi"><div class="kpi-label">Rebalance</div><div class="kpi-value" style="font-size:16px;">Weekly (Fri)</div></div>
+        <div class="kpi"><div class="kpi-label">Sample</div><div class="kpi-value" style="font-size:16px;">2015 – 2026</div></div>
+        <div class="kpi"><div class="kpi-label">Signal weights</div><div class="kpi-value" style="font-size:16px;">15/15/70</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="data">
+    <h2>Data &amp; Signals</h2>
+    <p class="section-sub">Live-pulled, cached, and validated before anything touches the backtest.</p>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3 class="subhead" style="margin-top:0;">Futures prices — yfinance</h3>
+        <table>
+          <tbody>
+            <tr><td>Tickers</td><td>CL=F, NG=F, RB=F, HO=F</td></tr>
+            <tr><td>Shape</td><td>2,905 rows × 4 cols</td></tr>
+            <tr><td>Range</td><td>2015-01-02 → 2026-07-22</td></tr>
+            <tr><td>Missing data</td><td>0 NaN (ffill limit 3)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h3 class="subhead" style="margin-top:0;">Storage / inventory — EIA v2 API</h3>
+        <table>
+          <tbody>
+            <tr><td>Series</td><td>NG working gas, CL crude stocks</td></tr>
+            <tr><td>Shape</td><td>2,286 rows × 2 cols</td></tr>
+            <tr><td>Range</td><td>1982-08-20 → 2026-07-17</td></tr>
+            <tr><td>NG coverage</td><td>from 2010-01-01 (weekly, no internal gaps)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <h3 class="subhead">Data quality notes</h3>
+    <p class="muted">CL (WTI) printed <strong>-$37.63</strong> on 2020-04-20 — a real historical event (the physical-delivery expiry squeeze), not corrupted data. It broke <code class="inline">pct_change</code>-based math everywhere it touched CL: momentum, carry, and seasonality signals in <code class="inline">signals.py</code>, plus the P&amp;L and vol-targeting calculations in <code class="inline">backtest.py</code>. Every one of those five call sites was switched to a negative-price-safe formula — raw price differences for the signal functions (scale-invariant once z-scored), and <code class="inline">(P<sub>t</sub> − P<sub>t-1</sub>) / |P<sub>t-1</sub>|</code> for the return series that feed position sizing and portfolio P&amp;L (mathematically identical to <code class="inline">pct_change</code> for positive prices, but well-defined and correctly signed for any price).</p>
+  </section>
+
+  <section id="results">
+    <h2>Backtest Results</h2>
+    <p class="section-sub">Current live configuration (<code class="inline">SIGNAL_WEIGHTS</code> 0.15 / 0.15 / 0.70, <code class="inline">CONVICTION_SCALE</code> 4.03) vs. an equal-weight buy-and-hold benchmark.</p>
+
+    <div class="table-scroll">
+      <table>
+        <caption>Strategy — net of transaction costs</caption>
+        <thead>
+          <tr><th>Commodity</th><th>Sharpe</th><th>Ann. Return</th><th>Ann. Vol</th><th>Max Drawdown</th><th>Hit Rate</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>CL</td><td class="pos">0.38</td><td>13.06%</td><td>24.06%</td><td class="neg">-31.41%</td><td>51.99%</td></tr>
+          <tr><td>NG</td><td class="neg">-0.07</td><td>2.61%</td><td>19.51%</td><td class="neg">-30.80%</td><td>49.64%</td></tr>
+          <tr><td>RB</td><td class="pos">0.27</td><td>10.54%</td><td>24.61%</td><td class="neg">-44.98%</td><td>50.72%</td></tr>
+          <tr><td>HO</td><td class="pos">0.44</td><td>14.33%</td><td>23.38%</td><td class="neg">-27.42%</td><td>48.01%</td></tr>
+          <tr class="total"><td>PORTFOLIO</td><td class="pos">0.41</td><td>10.14%</td><td>14.98%</td><td class="neg">-20.30%</td><td>51.45%</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="table-scroll" style="margin-top:22px;">
+      <table>
+        <caption>Buy &amp; hold benchmark — equal-weight, unlevered</caption>
+        <thead>
+          <tr><th>Commodity</th><th>Sharpe</th><th>Ann. Return</th><th>Ann. Vol</th><th>Max Drawdown</th><th>Hit Rate</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>CL</td><td class="pos">0.22</td><td>13.23%</td><td>42.41%</td><td class="neg">-77.21%</td><td>53.90%</td></tr>
+          <tr><td>NG</td><td class="pos">0.23</td><td>17.91%</td><td>61.08%</td><td class="neg">-82.83%</td><td>48.92%</td></tr>
+          <tr><td>RB</td><td class="pos">0.30</td><td>16.88%</td><td>43.20%</td><td class="neg">-74.31%</td><td>51.91%</td></tr>
+          <tr><td>HO</td><td class="pos">0.28</td><td>15.94%</td><td>41.94%</td><td class="neg">-72.97%</td><td>51.91%</td></tr>
+          <tr class="total"><td>PORTFOLIO</td><td class="pos">0.35</td><td>15.99%</td><td>34.65%</td><td class="neg">-64.44%</td><td>53.07%</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <figure class="chart-figure">
+      <h3 class="subhead">Equity curve — growth of $1</h3>
+      <div class="chart-wrap" id="eqChartWrap">
+        <svg id="eqChart" viewBox="0 0 760 340" role="img" aria-label="Equity curve chart comparing the strategy to buy-and-hold from 2015 to 2026">
+          <!-- gridlines -->
+          <g id="eqGrid"></g>
+          <!-- lines -->
+          <path d="M 46.0,269.1 L 51.1,254.6 L 56.1,262.5 L 61.2,253.3 L 66.2,249.1 L 71.3,249.9 L 76.3,263.2 L 81.4,268.3 L 86.5,272.0 L 91.5,273.8 L 96.6,279.2 L 101.6,287.8 L 106.7,290.5 L 111.8,296.2 L 116.8,283.8 L 121.9,272.3 L 126.9,268.3 L 132.0,266.3 L 137.0,273.5 L 142.1,263.5 L 147.2,262.4 L 152.2,260.4 L 157.3,264.6 L 162.3,246.7 L 167.4,253.0 L 172.4,258.8 L 177.5,253.3 L 182.6,256.7 L 187.6,254.1 L 192.7,261.2 L 197.7,254.7 L 202.8,256.5 L 207.9,251.3 L 212.9,249.0 L 218.0,244.1 L 223.0,239.7 L 228.1,228.0 L 233.1,242.4 L 238.2,236.2 L 243.3,230.7 L 248.3,227.1 L 253.4,224.2 L 258.4,228.9 L 263.5,226.2 L 268.6,222.5 L 273.6,228.7 L 278.7,239.0 L 283.7,256.2 L 288.8,247.7 L 293.8,243.7 L 298.9,238.7 L 304.0,233.8 L 309.0,247.7 L 314.1,242.9 L 319.1,247.4 L 324.2,251.6 L 329.2,247.3 L 334.3,247.1 L 339.4,250.2 L 344.4,243.5 L 349.5,262.6 L 354.5,271.3 L 359.6,304.1 L 364.7,309.5 L 369.7,283.7 L 374.8,280.3 L 379.8,273.5 L 384.9,260.2 L 389.9,270.1 L 395.0,265.9 L 400.1,252.3 L 405.1,249.9 L 410.2,241.2 L 415.2,223.0 L 420.3,225.0 L 425.3,214.9 L 430.4,209.1 L 435.5,194.3 L 440.5,186.6 L 445.6,188.0 L 450.6,175.8 L 455.7,156.8 L 460.8,182.5 L 465.8,184.7 L 470.9,152.4 L 475.9,145.6 L 481.0,80.9 L 486.0,54.5 L 491.1,32.3 L 496.2,58.2 L 501.2,62.4 L 506.3,64.0 L 511.3,115.9 L 516.4,88.4 L 521.4,117.2 L 526.5,131.5 L 531.6,149.5 L 536.6,174.8 L 541.7,174.2 L 546.7,176.4 L 551.8,180.4 L 556.9,169.4 L 561.9,150.2 L 567.0,147.8 L 572.0,139.9 L 577.1,144.9 L 582.1,162.8 L 587.2,177.4 L 592.3,158.5 L 597.3,185.1 L 602.4,168.8 L 607.4,173.5 L 612.5,162.2 L 617.6,153.1 L 622.6,171.4 L 627.7,178.9 L 632.7,174.9 L 637.8,172.6 L 642.8,165.8 L 647.9,159.6 L 653.0,156.5 L 658.0,150.1 L 663.1,141.9 L 668.1,167.5 L 673.2,164.9 L 678.2,148.2 L 683.3,154.9 L 688.4,158.0 L 693.4,159.2 L 698.5,142.5 L 703.5,140.5 L 708.6,157.6 L 713.7,121.0 L 718.7,138.8 L 723.8,41.1 L 728.8,64.3 L 733.9,63.1 L 738.9,90.7 L 744.0,51.4"
+                fill="none" stroke="var(--series-2)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+          <path d="M 46.0,263.1 L 51.1,263.1 L 56.1,263.1 L 61.2,263.1 L 66.2,263.1 L 71.3,263.1 L 76.3,263.1 L 81.4,263.1 L 86.5,263.1 L 91.5,263.1 L 96.6,263.1 L 101.6,263.1 L 106.7,263.8 L 111.8,264.0 L 116.8,262.7 L 121.9,260.7 L 126.9,259.5 L 132.0,258.2 L 137.0,259.7 L 142.1,258.7 L 147.2,260.9 L 152.2,260.8 L 157.3,261.2 L 162.3,260.3 L 167.4,260.7 L 172.4,260.5 L 177.5,262.4 L 182.6,262.3 L 187.6,263.0 L 192.7,263.2 L 197.7,264.3 L 202.8,264.8 L 207.9,265.1 L 212.9,265.8 L 218.0,265.2 L 223.0,265.4 L 228.1,263.1 L 233.1,267.3 L 238.2,267.5 L 243.3,268.1 L 248.3,267.7 L 253.4,268.4 L 258.4,269.6 L 263.5,270.6 L 268.6,272.6 L 273.6,270.7 L 278.7,254.1 L 283.7,253.3 L 288.8,257.5 L 293.8,257.9 L 298.9,256.8 L 304.0,255.7 L 309.0,257.2 L 314.1,256.5 L 319.1,257.6 L 324.2,257.8 L 329.2,259.9 L 334.3,260.4 L 339.4,261.8 L 344.4,265.5 L 349.5,259.2 L 354.5,259.6 L 359.6,258.7 L 364.7,264.9 L 369.7,263.9 L 374.8,262.3 L 379.8,263.0 L 384.9,261.3 L 389.9,262.6 L 395.0,262.1 L 400.1,271.3 L 405.1,271.6 L 410.2,273.7 L 415.2,269.1 L 420.3,262.7 L 425.3,261.7 L 430.4,259.4 L 435.5,254.5 L 440.5,253.7 L 445.6,253.9 L 450.6,250.6 L 455.7,248.0 L 460.8,232.1 L 465.8,233.6 L 470.9,237.2 L 475.9,236.3 L 481.0,212.1 L 486.0,214.2 L 491.1,210.2 L 496.2,209.8 L 501.2,207.7 L 506.3,203.3 L 511.3,199.0 L 516.4,205.2 L 521.4,193.9 L 526.5,192.8 L 531.6,186.6 L 536.6,185.0 L 541.7,189.5 L 546.7,186.1 L 551.8,182.5 L 556.9,185.7 L 561.9,193.4 L 567.0,194.1 L 572.0,190.1 L 577.1,189.0 L 582.1,189.5 L 587.2,182.9 L 592.3,186.8 L 597.3,183.7 L 602.4,180.9 L 607.4,183.0 L 612.5,182.4 L 617.6,179.6 L 622.6,173.4 L 627.7,164.4 L 632.7,146.8 L 637.8,161.6 L 642.8,158.5 L 647.9,163.4 L 653.0,166.6 L 658.0,176.3 L 663.1,176.5 L 668.1,186.5 L 673.2,189.6 L 678.2,186.8 L 683.3,185.8 L 688.4,186.8 L 693.4,185.8 L 698.5,179.6 L 703.5,172.5 L 708.6,164.4 L 713.7,150.7 L 718.7,148.6 L 723.8,91.3 L 728.8,92.7 L 733.9,92.4 L 738.9,97.4 L 744.0,108.0"
+                fill="none" stroke="var(--series-1)" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" />
+          <g id="eqCrosshair" style="opacity:0;">
+            <line x1="0" y1="16" x2="0" y2="312" stroke="var(--baseline)" stroke-width="1"/>
+            <circle id="eqDotStrat" r="3.5" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="1.5"/>
+            <circle id="eqDotBench" r="3.5" fill="var(--series-2)" stroke="var(--surface-1)" stroke-width="1.5"/>
+          </g>
+          <rect id="eqHover" x="46" y="16" width="698" height="296" fill="transparent"/>
+        </svg>
+        <div class="tooltip" id="eqTooltip"></div>
+      </div>
+      <div class="legend">
+        <span><span class="dot" style="background:var(--series-1)"></span>Strategy (net of costs)</span>
+        <span><span class="dot" style="background:var(--series-2)"></span>Buy &amp; hold benchmark</span>
+      </div>
+      <figcaption>Monthly-sampled portfolio equity, 2015-01 → 2026-07. Strategy ends at $2.62 (10.1%/yr, 15.0% vol); benchmark ends at $3.21 (16.0%/yr, 34.7% vol) with far deeper drawdowns along the way. Hover to inspect.</figcaption>
+    </figure>
+  </section>
+
+  <section id="breakdown">
+    <h2>Signal Breakdown</h2>
+    <p class="section-sub">Each signal run in isolation (100% weight, no vol-scale fix applied — this decomposition predates and motivated it) to see which one is actually adding value.</p>
+
+    <figure class="chart-figure">
+      <h3 class="subhead" style="margin-top:0;">Sharpe by signal, isolated</h3>
+      <div class="chart-wrap">
+        <svg viewBox="0 0 760 320" role="img" aria-label="Grouped bar chart of Sharpe ratio by commodity for momentum, carry, and seasonality signals run in isolation">
+          <line x1="46" y1="74" x2="744" y2="74" stroke="var(--baseline)" stroke-width="1"/>
+          <text x="40" y="77" text-anchor="end" font-size="11" fill="var(--text-muted)">0.0</text>
+          <rect x="60.0" y="74.0" width="34.5" height="29.6" fill="var(--series-1)" rx="2"><title>CL Momentum: -0.17</title></rect>
+          <rect x="98.5" y="74.0" width="34.5" height="55.7" fill="var(--series-2)" rx="2"><title>CL Carry: -0.32</title></rect>
+          <rect x="137.1" y="42.7" width="34.5" height="31.3" fill="var(--series-3)" rx="2"><title>CL Seasonality: 0.18</title></rect>
+          <rect x="199.6" y="74.0" width="34.5" height="121.7" fill="var(--series-1)" rx="2"><title>NG Momentum: -0.70</title></rect>
+          <rect x="238.1" y="74.0" width="34.5" height="186.1" fill="var(--series-2)" rx="2"><title>NG Carry: -1.07</title></rect>
+          <rect x="276.7" y="74.0" width="34.5" height="27.8" fill="var(--series-3)" rx="2"><title>NG Seasonality: -0.16</title></rect>
+          <rect x="339.2" y="74.0" width="34.5" height="107.8" fill="var(--series-1)" rx="2"><title>RB Momentum: -0.62</title></rect>
+          <rect x="377.7" y="74.0" width="34.5" height="66.1" fill="var(--series-2)" rx="2"><title>RB Carry: -0.38</title></rect>
+          <rect x="416.3" y="28.8" width="34.5" height="45.2" fill="var(--series-3)" rx="2"><title>RB Seasonality: 0.26</title></rect>
+          <rect x="478.8" y="74.0" width="34.5" height="50.4" fill="var(--series-1)" rx="2"><title>HO Momentum: -0.29</title></rect>
+          <rect x="517.3" y="74.0" width="34.5" height="55.7" fill="var(--series-2)" rx="2"><title>HO Carry: -0.32</title></rect>
+          <rect x="555.9" y="23.6" width="34.5" height="50.4" fill="var(--series-3)" rx="2"><title>HO Seasonality: 0.29</title></rect>
+          <rect x="618.4" y="74.0" width="34.5" height="100.9" fill="var(--series-1)" rx="2"><title>PORTFOLIO Momentum: -0.58</title></rect>
+          <rect x="656.9" y="74.0" width="34.5" height="120.0" fill="var(--series-2)" rx="2"><title>PORTFOLIO Carry: -0.69</title></rect>
+          <rect x="695.5" y="30.5" width="34.5" height="43.5" fill="var(--series-3)" rx="2"><title>PORTFOLIO Seasonality: 0.25</title></rect>
+          <text x="115.8" y="308" text-anchor="middle" font-size="12" fill="var(--text-secondary)">CL</text>
+          <text x="255.4" y="308" text-anchor="middle" font-size="12" fill="var(--text-secondary)">NG</text>
+          <text x="395.0" y="308" text-anchor="middle" font-size="12" fill="var(--text-secondary)">RB</text>
+          <text x="534.6" y="308" text-anchor="middle" font-size="12" fill="var(--text-secondary)">HO</text>
+          <text x="674.2" y="308" text-anchor="middle" font-size="12" font-weight="700" fill="var(--text-primary)">PORTFOLIO</text>
+        </svg>
+      </div>
+      <div class="legend">
+        <span><span class="dot" style="background:var(--series-1)"></span>Momentum</span>
+        <span><span class="dot" style="background:var(--series-2)"></span>Carry</span>
+        <span><span class="dot" style="background:var(--series-3)"></span>Seasonality</span>
+      </div>
+      <figcaption>Seasonality is the only signal with positive Sharpe in 3 of 4 commodities and at the portfolio level. Momentum and carry are net-negative everywhere.</figcaption>
+    </figure>
+
+    <h3 class="subhead">Raw return vs. Sharpe — how much was really the hurdle rate?</h3>
+    <p class="muted">Sharpe subtracts <code class="inline">RISK_FREE_RATE</code> (4%/yr). Verified algebraically and numerically that this is applied correctly relative to the weekly holding period (no double-penalization bug). The question is how much of a "negative Sharpe" reflects genuine losses vs. a positive-but-sub-4% return.</p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Portfolio row</th><th>Momentum</th><th>Carry</th><th>Seasonality</th><th>Combined (0.15/0.15/0.7)</th><th>Buy &amp; Hold</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Ann. Return</td><td class="pos">0.13%</td><td class="pos">0.10%</td><td class="pos">5.24%</td><td class="pos">2.51%</td><td class="pos">15.99%</td></tr>
+          <tr><td>Sharpe</td><td class="neg">-0.58</td><td class="neg">-0.69</td><td class="pos">0.25</td><td class="neg">-0.40</td><td class="pos">0.35</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted">Across every commodity/signal combination tested, 21 of 25 cells showed negative Sharpe — but only <strong>4</strong> actually had negative raw return. Portfolio-level raw return was positive in <em>every single variant</em>, including momentum-only and carry-only. Most of the "negative Sharpe" story was the 4% hurdle, not money-losing signals — with NG momentum/carry and RB momentum as the real exceptions.</p>
+  </section>
+
+  <section id="findings">
+    <h2>Key Findings</h2>
+    <p class="section-sub">Four things worth knowing before trusting this strategy with real risk.</p>
+
+    <div class="finding">
+      <span class="finding-tag good">Not systematic · outlier-driven</span>
+      <h3>Carry's biggest bets on CL/RB are fine — the story is COVID timing, not skill</h3>
+      <p>Pulling the 10 largest-|z-score| carry weeks for CL and RB shows a coin-flip hit rate (50%), yet <strong>positive</strong> cumulative contribution (+3.09% CL, +4.77% RB over just those 10 weeks). A single correctly-timed short entered 2020-03-13 — right before the COVID crude crash — contributed +6.8% (CL) and +5.5% (RB) on its own. The signal isn't reliably right at the extremes; it just got one macro regime-shift dead right.</p>
+      <div class="stat-line">
+        <div class="stat">CL top-10 hit rate<b>50%</b></div>
+        <div class="stat">CL top-10 Σ contribution<b class="pos" style="color:var(--good)">+3.09%</b></div>
+        <div class="stat">RB top-10 Σ contribution<b class="pos" style="color:var(--good)">+4.77%</b></div>
+      </div>
+    </div>
+
+    <div class="finding">
+      <span class="finding-tag critical">Systematically wrong</span>
+      <h3>Heating Oil's largest carry bets are genuinely bad</h3>
+      <p>Same test on HO tells a different story: 7 of its 10 largest-|z| weeks were wrong, and the wrong ones weren't small (2020-04-24: -4.0%; 2026-01-30: -3.95%; 2025-06-20: -2.93%). Unlike CL/RB, this isn't a couple of outliers skewing an otherwise-fine average — it's a real pattern worth trimming or excluding high-|z| carry bets on HO specifically.</p>
+      <div class="stat-line">
+        <div class="stat">HO top-10 hit rate<b class="neg" style="color:var(--critical)">30%</b></div>
+        <div class="stat">HO top-10 Σ contribution<b class="neg" style="color:var(--critical)">-11.10%</b></div>
+      </div>
+    </div>
+
+    <div class="finding">
+      <span class="finding-tag good">Diagnosed and fixed</span>
+      <h3>Vol-targeting undershot its 15% target by 4x — fixed, Sharpe flipped positive</h3>
+      <p>Realized portfolio vol was only 3.72% against a 15% target. Ruled out the two obvious suspects: the 2x leverage cap <strong>never bound</strong> (0% of weeks, even after correcting), and the 12-week rolling vol estimator wasn't biased low (full-conviction legs landed at 17–19%, right at target). The actual cause: <code class="inline">tanh(signal / 2.0)</code> conviction sizing — the composite signal's typical magnitude (mean |z| ≈ 0.47) rarely nears the tanh's saturation point, so average conviction was only ~22% of "full." A further ~1.5x reduction came from genuine cross-commodity diversification (NG correlates negatively with the other three legs). Fixed with a calibrated <code class="inline">CONVICTION_SCALE = 4.03</code> multiplier in <code class="inline">backtest.py</code>, confirmed end-to-end.</p>
+      <div class="stat-line">
+        <div class="stat">Target vol<b>15.0%</b></div>
+        <div class="stat">Realized vol, before<b>3.72%</b></div>
+        <div class="stat">Realized vol, after<b>14.98%</b></div>
+        <div class="stat">Portfolio Sharpe<b>-0.40 → <span style="color:var(--good)">+0.41</span></b></div>
+      </div>
+    </div>
+
+    <div class="finding">
+      <span class="finding-tag neutral">Signal / commodity mismatch</span>
+      <h3>Momentum and carry don't transfer to natural gas — seasonality does, relatively</h3>
+      <p>NG is the weakest leg under every signal, but not uniformly: momentum (Sharpe -0.70) and carry (-1.07) are both badly negative, while seasonality (-0.16) is far closer to breakeven and is the only signal with a <em>positive</em> correlation to NG's forward returns (+0.044, vs. -0.046 for momentum and -0.055 for carry). NG's storage-driven, weather-seasonal supply/demand dynamics plausibly explain why a calendar-based signal reads it better than trend- or curve-shape-based ones. Testing exclusion (Sharpe 0.44) vs. half-weight (0.43) vs. quarter-weight (0.43) vs. current full inclusion (0.41) showed a smooth, monotonic tradeoff — more NG weight reduction raises Sharpe/return but also raises drawdown roughly in step; no option dominates outright.</p>
+      <div class="stat-line">
+        <div class="stat">NG momentum Sharpe<b class="neg" style="color:var(--critical)">-0.70</b></div>
+        <div class="stat">NG carry Sharpe<b class="neg" style="color:var(--critical)">-1.07</b></div>
+        <div class="stat">NG seasonality Sharpe<b>-0.16</b></div>
+        <div class="stat">NG excluded, portfolio Sharpe<b>0.44</b></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="repro">
+    <h2>Run It Yourself</h2>
+    <p class="section-sub">Everything above is reproducible from the repo — no hidden state.</p>
+    <pre><code># from the repo root
+venv\Scripts\python.exe src\data_pipeline.py   # pull/cache prices + EIA storage
+venv\Scripts\python.exe src\signals.py         # sanity-check the composite signal
+venv\Scripts\python.exe src\backtest.py        # full backtest: strategy vs. buy &amp; hold
+venv\Scripts\python.exe src\main.py            # end-to-end run, writes output/ (metrics CSVs + equity_curve.png)</code></pre>
+    <p class="muted">Requires <code class="inline">EIA_API_KEY</code> in a <code class="inline">.env</code> file at the repo root (loaded automatically by <code class="inline">data_pipeline.py</code>) — free key at eia.gov/opendata/register.php. Without it, storage data is skipped gracefully and only the price-driven signals run.</p>
+
+    <h3 class="subhead">Viewing this page locally</h3>
+    <pre><code># simplest — just open the file directly, it's fully self-contained
+start docs\index.html          # Windows
+# or serve it (needed if you later add non-inlined assets, or want it at
+# the same relative paths GitHub Pages will use):
+venv\Scripts\python.exe -m http.server 8000 --directory docs
+# then visit http://localhost:8000/</code></pre>
+    <p class="muted">For GitHub Pages: push this repo to GitHub, then in <strong>Settings → Pages</strong> set the source to <strong>Deploy from a branch</strong>, branch <code class="inline">main</code>, folder <code class="inline">/docs</code>. The page will publish at <code class="inline">https://&lt;username&gt;.github.io/&lt;repo&gt;/</code>. (This project isn't yet a git repository — <code class="inline">git init</code> first if you want to do this.)</p>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Cross-Commodity Energy Strategy — research summary generated from the live backtest in this repository. Not investment advice.</p>
+  </div>
+</footer>
+
+<button class="theme-toggle" id="themeToggle" type="button">Toggle theme</button>
+
+<script>
+(function() {
+  var root = document.documentElement;
+  var btn = document.getElementById('themeToggle');
+  var stored = localStorage.getItem('eq-theme');
+  if (stored) root.setAttribute('data-theme', stored);
+  btn.addEventListener('click', function() {
+    var current = root.getAttribute('data-theme');
+    var next = current === 'dark' ? 'light' : (current === 'light' ? null : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'light' : 'dark'));
+    if (next) { root.setAttribute('data-theme', next); localStorage.setItem('eq-theme', next); }
+    else { root.removeAttribute('data-theme'); localStorage.removeItem('eq-theme'); }
+  });
+})();
+
+(function() {
+  var dates = ["2015-01","2015-02","2015-03","2015-04","2015-05","2015-06","2015-07","2015-08","2015-09","2015-10","2015-11","2015-12","2016-01","2016-02","2016-03","2016-04","2016-05","2016-06","2016-07","2016-08","2016-09","2016-10","2016-11","2016-12","2017-01","2017-02","2017-03","2017-04","2017-05","2017-06","2017-07","2017-08","2017-09","2017-10","2017-11","2017-12","2018-01","2018-02","2018-03","2018-04","2018-05","2018-06","2018-07","2018-08","2018-09","2018-10","2018-11","2018-12","2019-01","2019-02","2019-03","2019-04","2019-05","2019-06","2019-07","2019-08","2019-09","2019-10","2019-11","2019-12","2020-01","2020-02","2020-03","2020-04","2020-05","2020-06","2020-07","2020-08","2020-09","2020-10","2020-11","2020-12","2021-01","2021-02","2021-03","2021-04","2021-05","2021-06","2021-07","2021-08","2021-09","2021-10","2021-11","2021-12","2022-01","2022-02","2022-03","2022-04","2022-05","2022-06","2022-07","2022-08","2022-09","2022-10","2022-11","2022-12","2023-01","2023-02","2023-03","2023-04","2023-05","2023-06","2023-07","2023-08","2023-09","2023-10","2023-11","2023-12","2024-01","2024-02","2024-03","2024-04","2024-05","2024-06","2024-07","2024-08","2024-09","2024-10","2024-11","2024-12","2025-01","2025-02","2025-03","2025-04","2025-05","2025-06","2025-07","2025-08","2025-09","2025-10","2025-11","2025-12","2026-01","2026-02","2026-03","2026-04","2026-05","2026-06","2026-07"];
+  var strat = [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,0.9929,0.9905,1.0041,1.0244,1.0374,1.0507,1.0352,1.046,1.0232,1.0239,1.0193,1.0286,1.0243,1.0272,1.0068,1.0083,1.0008,0.9982,0.9872,0.9815,0.9788,0.9716,0.978,0.9756,0.9997,0.9563,0.9538,0.9474,0.9515,0.9445,0.9319,0.9219,0.9008,0.9202,1.0932,1.1018,1.0582,1.0535,1.0655,1.0769,1.0618,1.069,1.0576,1.0549,1.0335,1.0274,1.0132,0.9745,1.0403,1.0365,1.0461,0.981,0.9919,1.0084,1.0013,1.0183,1.0052,1.0098,0.9144,0.9109,0.8893,0.9376,1.0039,1.0141,1.0383,1.0893,1.0976,1.0961,1.1298,1.1573,1.3237,1.3076,1.2702,1.2793,1.5321,1.5105,1.5515,1.5559,1.5779,1.6242,1.6692,1.6039,1.7223,1.734,1.7984,1.8154,1.7678,1.8037,1.841,1.8072,1.7268,1.7198,1.7613,1.7727,1.7675,1.8366,1.7956,1.8288,1.8574,1.8357,1.8418,1.8711,1.9358,2.0295,2.2141,2.0587,2.0912,2.0403,2.007,1.9053,1.904,1.7993,1.7671,1.7956,1.8061,1.7958,1.8063,1.871,1.9458,2.0304,2.1728,2.1944,2.7924,2.7779,2.7815,2.7293,2.6187];
+  var bench = [0.9368,1.0882,1.0062,1.1018,1.1456,1.1378,0.9992,0.945,0.9071,0.888,0.8318,0.7422,0.7135,0.6544,0.784,0.9038,0.9457,0.9659,0.8907,0.9956,1.0067,1.0275,0.9842,1.1706,1.1049,1.0443,1.1024,1.0662,1.0932,1.0197,1.0869,1.0691,1.1226,1.1467,1.1985,1.2444,1.3657,1.2153,1.2806,1.3377,1.3751,1.4058,1.3566,1.385,1.4239,1.3589,1.2513,1.072,1.1606,1.2022,1.2543,1.3053,1.1602,1.2101,1.1641,1.12,1.165,1.1672,1.1343,1.2039,1.0045,0.9139,0.5718,0.5151,0.7851,0.8201,0.8914,1.0295,0.9271,0.9705,1.1122,1.1379,1.2284,1.4187,1.3976,1.5029,1.5631,1.7176,1.7987,1.7839,1.9106,2.1094,1.8405,1.8184,2.1555,2.2264,2.9018,3.1765,3.4084,3.1385,3.0943,3.0781,2.5363,2.8228,2.5228,2.3728,2.1858,1.9213,1.9272,1.9045,1.8624,1.9774,2.1781,2.2028,2.2854,2.2337,2.0464,1.8937,2.0915,1.8134,1.984,1.935,2.0533,2.1476,1.9571,1.8789,1.9205,1.944,2.0152,2.0796,2.1123,2.1793,2.2651,1.9972,2.0252,2.1994,2.129,2.0967,2.0843,2.2587,2.2796,2.1004,2.4826,2.2972,3.3172,3.0744,3.0869,2.7994,3.2089];
+
+  var PAD_L = 46, PAD_T = 16, PLOT_W = 698, PLOT_H = 296, Y_MIN = 0.489345, Y_MAX = 3.57882;
+  function xOf(i) { return PAD_L + (i / (dates.length - 1)) * PLOT_W; }
+  function yOf(v) { return PAD_T + (1 - (v - Y_MIN) / (Y_MAX - Y_MIN)) * PLOT_H; }
+
+  var gridG = document.getElementById('eqGrid');
+  var yGridlines = [1.0, 2.0, 3.0];
+  var svgNS = "http://www.w3.org/2000/svg";
+  yGridlines.forEach(function(g) {
+    var y = yOf(g);
+    var line = document.createElementNS(svgNS, 'line');
+    line.setAttribute('x1', PAD_L); line.setAttribute('x2', PAD_L + PLOT_W);
+    line.setAttribute('y1', y); line.setAttribute('y2', y);
+    line.setAttribute('stroke', 'var(--grid)'); line.setAttribute('stroke-width', '1');
+    gridG.appendChild(line);
+    var label = document.createElementNS(svgNS, 'text');
+    label.setAttribute('x', PAD_L - 6); label.setAttribute('y', y + 4);
+    label.setAttribute('text-anchor', 'end'); label.setAttribute('font-size', '11');
+    label.setAttribute('fill', 'var(--text-muted)');
+    label.textContent = '$' + g.toFixed(0);
+    gridG.appendChild(label);
+  });
+  [0, 24, 48, 72, 96, 120].forEach(function(i) {
+    var x = xOf(i);
+    var label = document.createElementNS(svgNS, 'text');
+    label.setAttribute('x', x); label.setAttribute('y', 330);
+    label.setAttribute('text-anchor', 'middle'); label.setAttribute('font-size', '11');
+    label.setAttribute('fill', 'var(--text-muted)');
+    label.textContent = dates[i].slice(0, 4);
+    gridG.appendChild(label);
+  });
+
+  var svg = document.getElementById('eqChart');
+  var hoverRect = document.getElementById('eqHover');
+  var crosshair = document.getElementById('eqCrosshair');
+  var chLine = crosshair.querySelector('line');
+  var dotStrat = document.getElementById('eqDotStrat');
+  var dotBench = document.getElementById('eqDotBench');
+  var tooltip = document.getElementById('eqTooltip');
+  var wrap = document.getElementById('eqChartWrap');
+
+  function handleMove(evt) {
+    var rect = svg.getBoundingClientRect();
+    var scaleX = 760 / rect.width;
+    var px = (evt.clientX - rect.left) * scaleX;
+    var idx = Math.round(((px - PAD_L) / PLOT_W) * (dates.length - 1));
+    idx = Math.max(0, Math.min(dates.length - 1, idx));
+    var x = xOf(idx);
+    crosshair.style.opacity = 1;
+    chLine.setAttribute('x1', x); chLine.setAttribute('x2', x);
+    dotStrat.setAttribute('cx', x); dotStrat.setAttribute('cy', yOf(strat[idx]));
+    dotBench.setAttribute('cx', x); dotBench.setAttribute('cy', yOf(bench[idx]));
+
+    var wrapRect = wrap.getBoundingClientRect();
+    var scaleShown = rect.width / 760;
+    var tx = (x * scaleShown);
+    tooltip.style.opacity = 1;
+    tooltip.style.left = Math.min(tx + 12, wrapRect.width - 150) + 'px';
+    tooltip.style.top = '8px';
+    tooltip.innerHTML = '<strong>' + dates[idx] + '</strong><br>' +
+      '<span style="color:var(--series-1)">●</span> Strategy: $' + strat[idx].toFixed(2) + '<br>' +
+      '<span style="color:var(--series-2)">●</span> Benchmark: $' + bench[idx].toFixed(2);
+  }
+  hoverRect.addEventListener('mousemove', handleMove);
+  hoverRect.addEventListener('mouseleave', function() {
+    crosshair.style.opacity = 0;
+    tooltip.style.opacity = 0;
+  });
+})();
+</script>
+
+</body>
+</html>

@@ -12,8 +12,7 @@ heating oil rallies in winter). Stack carry, momentum, and seasonality
 into one signal and you'd expect something that makes money and
 doesn't just track the commodity basket. That was the pitch going in.
 
-It's half right. One of the three signals actually works. The other
-two don't, and not in a subtle way — see §4 and §5 for the receipts.
+
 
 ## 2. Universe & Data
 

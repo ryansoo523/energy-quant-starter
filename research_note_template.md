@@ -23,7 +23,7 @@ doesn't just track the commodity basket. That was the pitch going in.
 - Data: yfinance for front-month continuous futures (`CL=F`, `NG=F`,
   `RB=F`, `HO=F`), EIA v2 API for weekly NG storage and crude stocks
   (goes back to 1982). The EIA data's in the pipeline and validated but
-  no signal actually uses it yet — low-hanging fruit, see §6.
+  no signal actually uses it yet, see §6.
 - One data quirk worth flagging so nobody thinks we messed up the
   pipeline: **CL traded at -$37.63 on 2020-04-20.** That's real — the
   physical-delivery squeeze at contract expiry, not a bad print. It
